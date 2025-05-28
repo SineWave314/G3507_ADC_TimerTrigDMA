@@ -1,105 +1,67 @@
-#if 0
 #include "ADC.h"
 
-volatile uint16_t ADC0_Data = 0;
 volatile uint8_t ADC0_DataValid = 0;
-volatile uint16_t ADC1_Data[4] = {0};
-volatile uint8_t ADC1_DataValid = 0;
 
 /**
  * @brief ADC初始化
  */
 void ADC_init(void) {
     NVIC_EnableIRQ(ADC0_INST_INT_IRQN);
-    NVIC_EnableIRQ(ADC1_INST_INT_IRQN);
 }
 
 /**
- * @brief 启动ADC0
- * @details 使用中断方式, 非阻塞
+ * @brief 设置ADC0事件定时器
+ * @param fs 采样率(Sa/s)
+ * @return 实际采样率(Sa/s)
  */
-void ADC0_start(void) {
+float ADC0_setEventTimer(uint32_t fs) {
+    uint32_t loadVal;
+    loadVal = (uint32_t)(EVENT_TIMER_CLK / (float)fs - 0.5F);
+    DL_TimerG_setLoadValue(ADC0_EVENT_TIMER, loadVal);
+    return (EVENT_TIMER_CLK / (float)(loadVal + 1));
+}
+
+/**
+ * @brief 启动ADC0 DMA
+ * @note 采样率由 @ref ADC0_setEventTimer 设置
+ * @param dst 转换数据目的数组指针
+ * @param cnt 采样点数
+ */
+void ADC0_startDMA(uint16_t* dst, uint16_t cnt) {
     ADC0_DataValid = 0;
-    DL_ADC12_startConversion(ADC0_INST);
+
+    // 配置ADC DMA
+    DL_DMA_disableChannel(DMA, DMA_ADC0_CHAN_ID);
+    DL_DMA_setSrcAddr(DMA, DMA_ADC0_CHAN_ID, DL_ADC12_getMemResultAddress(ADC0_INST, ADC0_ADCMEM_0));
+    DL_DMA_setDestAddr(DMA, DMA_ADC0_CHAN_ID, (uint32_t)dst);
+    DL_DMA_setTransferSize(DMA, DMA_ADC0_CHAN_ID, cnt);
+    DL_DMA_enableChannel(DMA, DMA_ADC0_CHAN_ID);
+
+    // 使能ADC
+    DL_ADC12_enableConversions(ADC0_INST);
+    delay_cycles(800);
+
+    // 启动事件定时器
+    DL_TimerG_startCounter(ADC0_EVENT_TIMER);
 }
 
 /**
- * @brief 获取ADC0数据
+ * @brief 等待ADC0运行完成
  * @param timeout 超时时间(ms)
- * @return ADC0转换数据
+ * @retval ADC_STA_TIMEOUT: 等待超时
+ * @retval ADC_STA_DONE: 运行完成
  */
-uint16_t ADC0_getData(uint32_t timeout) {
+ADC_Status_t ADC0_waitDone(uint32_t timeout) {
     uint32_t startTime = Tick;
-    while (!ADC0_DataValid) {
-        if (Tick - startTime >= timeout) return 0;
+    while (!IS_ADC0_DONE) {
+        if (Tick - startTime >= timeout) return ADC_STA_TIMEOUT;
     }
-    return ADC0_Data;
-}
-
-/**
- * @brief 获取ADC0电压值
- * @param timeout 超时时间(ms)
- * @return ADC0电压值
- */
-float ADC0_getVoltage(uint32_t timeout) {
-    uint32_t startTime = Tick;
-    while (!ADC0_DataValid) {
-        if (Tick - startTime >= timeout) return 0;
-    }
-    return ADC_VAL_TO_VOLTAGE(ADC0_Data);
-}
-
-/**
- * @brief 启动ADC1
- * @details 使用中断方式, 非阻塞
- */
-void ADC1_start(void) {
-    ADC1_DataValid = 0;
-    DL_ADC12_startConversion(ADC1_INST);
-}
-
-/**
- * @brief 获取ADC1数据
- * @param mem ADC1转换内存序号
- * @param timeout 超时时间(ms)
- * @return ADC1对应内存序号转换数据
- */
-uint16_t ADC1_getData(uint8_t mem, uint32_t timeout) {
-    uint32_t startTime = Tick;
-    while (!ADC0_DataValid) {
-        if (Tick - startTime >= timeout) return 0;
-    }
-    return ADC1_Data[mem];
-}
-
-/**
- * @brief 获取ADC1电压值
- * @param mem ADC1转换内存序号
- * @param timeout 超时时间(ms)
- * @return ADC1对应内存序号电压值
- */
-float ADC1_getVoltage(uint8_t mem, uint32_t timeout) {
-    uint32_t startTime = Tick;
-    while (!ADC0_DataValid) {
-        if (Tick - startTime >= timeout) return 0;
-    }
-    return ADC_VAL_TO_VOLTAGE(ADC1_Data[mem]);
+    return ADC_STA_DONE;
 }
 
 // ADC0中断回调
-void ADC0_mem0ResultLoadedCallback(void) {
-    ADC0_Data = DL_ADC12_getMemResult(ADC0_INST, ADC0_ADCMEM_0);
+void ADC0_DMADoneCallback(void) {
+    DL_TimerG_stopCounter(ADC0_EVENT_TIMER);
+    DL_ADC12_disableConversions(ADC0_INST);
     ADC0_DataValid = 1;
-    DL_ADC12_enableConversions(ADC0_INST);
 }
-
-// ADC1中断回调
-void ADC1_mem3ResultLoadedCallback(void) {
-    ADC1_Data[0] = DL_ADC12_getMemResult(ADC1_INST, ADC1_ADCMEM_0);
-    ADC1_Data[1] = DL_ADC12_getMemResult(ADC1_INST, ADC1_ADCMEM_1);
-    ADC1_Data[2] = DL_ADC12_getMemResult(ADC1_INST, ADC1_ADCMEM_2);
-    ADC1_Data[3] = DL_ADC12_getMemResult(ADC1_INST, ADC1_ADCMEM_3);
-    ADC1_DataValid = 1;
-    DL_ADC12_enableConversions(ADC1_INST);
-}
-#endif

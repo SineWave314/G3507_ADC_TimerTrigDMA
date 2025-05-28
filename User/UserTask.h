@@ -6,6 +6,8 @@
 #include "Tick.h"
 #include "ADC.h"
 
+#define ADC0_DATA_LEN 1024
+
 void UserTask_init(void);
 void UserTask_loop(void);
 void UserTask_tick(void);
