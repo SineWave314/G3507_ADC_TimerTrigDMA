@@ -7,6 +7,8 @@
 #include "ADC.h"
 
 #define ADC0_DATA_LEN 1024
+#define ADC1_DATA_LEN 256
+#define ADC1_CH_DATA_LEN (ADC1_DATA_LEN >> 1)
 
 void UserTask_init(void);
 void UserTask_loop(void);
