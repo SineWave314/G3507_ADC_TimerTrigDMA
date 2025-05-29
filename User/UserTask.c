@@ -9,8 +9,8 @@ uint16_t ADC1CH1Data[ADC1_CH_DATA_LEN] = {0};
 
 void UserTask_init(void) {
     ADC_init(); // ADC初始化(使能中断)
-    Fs0 = ADC0_setEventTimer(1E6); // 设置ADC0采样率1MSa/s
-    Fs1 = ADC1_setEventTimer(100E3); // 设置ADC1采样率100kSa/s
+    Fs0 = ADC0_setEventTimer(1000000); // 设置ADC0采样率1MSa/s
+    Fs1 = ADC1_setEventTimer(100000); // 设置ADC1采样率100kSa/s
 }
 
 void UserTask_loop(void) {
